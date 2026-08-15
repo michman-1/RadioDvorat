@@ -21,5 +21,5 @@ Setup and administering of an online radio project.
 
 ## 📸 Gallery and Screenshots
 
-![Home Page](docs/screenshots/homepage.png)
-![AzuraCast Dashboard](docs/screenshots/azuracast.png)
+![Home Page](docs/screenshots/homepage.jpg)
+![AzuraCast Dashboard](docs/screenshots/azuracast.jpg)
