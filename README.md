@@ -1,6 +1,6 @@
 # RadioDvorat
 [Radio Dvorat](https://radio.dvoratbg.com/) is a project aiming to create and maintain an online radio broadcast service.
-The radio is created on behalf of a bulgarian company [Dvorat EOOD](https://dvoratbg.com).
+The radio is created on behalf of a bulgarian company [Dvorat BG EOOD](https://dvoratbg.com).
 It is non-profit, does not contain any third-party ads, altho it is branded by Dvorat.
 
 ## Used Technologies
