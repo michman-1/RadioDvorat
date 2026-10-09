@@ -1,0 +1,293 @@
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<div class="background-video-container">
+  <video class="video-bg" autoplay muted loop playsinline>
+    <source src="Radio_DvoratBG_live.mp4" type="video/mp4">
+    Вашият браузър не поддържа видео.
+  </video>
+
+  <div class="radio-player">
+    <div class="radio-header">
+      <div class="radio-name">Радио Дворът</div>
+      <div class="radio-tagline">Излъчване от природата с любов 🌿🎧</div>
+    </div>
+
+    <div class="player-main">
+      <div class="cover"><img id="coverArt" src="" alt="Cover"></div>
+      <div class="info">
+        <div class="title" id="songTitle">Зареждане...</div>
+        <div class="artist" id="songArtist">...</div>
+        <div class="progress-container">
+          <div class="progress">
+            <div class="progress-bar" id="progressBar" style="width: 0%;">
+              <div class="progress-knob"></div>
+            </div>
+          </div>
+          <div class="time-info"><span id="currentTime">0:00</span><span id="totalTime">0:00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="playBtn" class="play-btn" aria-label="Play">
+        <div id="btnIcon" class="icon-play"></div>
+      </button>
+      <div class="volume-control">
+        <button id="volumeBtn" class="volume-btn" type="button" aria-label="Mute audio" title="Mute audio">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 9v6h4l5 4V5L7 9H3z"></path>
+            <path id="volumeWaves" d="M16 9a5 5 0 0 1 0 6m2-9a9 9 0 0 1 0 12"></path>
+            <path id="volumeMuted" d="m16 9 5 6m0-6-5 6" style="display: none;"></path>
+          </svg>
+        </button>
+        <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volume">
+        <output id="volumeValue" for="volumeSlider">50%</output>
+      </div>
+    </div>
+    <audio id="radioAudio"></audio>
+  </div>
+</div>
+
+<style>
+
+    @media only screen and (max-width: 600px) {
+        .elementor-element-283e6cd {
+        margin-top: 100px;
+        }
+        .background-video-container {
+            overflow: scroll;
+            min-height: 400px;
+        }
+        .video-bg{
+            overflow: scroll;
+        }
+    }
+  /* Контейнер, който държи всичко */
+  .background-video-container {
+    position: relative;
+    width: 90%;
+    height: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    aspect-ratio: 115/99;
+    overflow: hidden;
+    border-radius: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center; /* Това центрира плеъра вертикално и хоризонтално */
+  }
+
+  /* Видеото е абсолютен фон */
+  .video-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+  }
+
+  /* Плеърът е над видеото */
+  .radio-player {
+    z-index: 2;
+    background: rgba(0, 0, 0, 0.5);
+    /*backdrop-filter: blur(8px);*/
+    padding: 20px;
+    border-radius: 20px;
+    color: #fff;
+    width: 90%;
+    max-width: 420px;
+    font-family: sans-serif;
+  }
+
+  .radio-header { text-align: center; margin-bottom: 15px; }
+  .radio-name { font-size: 2.0rem; font-weight: bold; }
+  .radio-tagline { font-size: 1.2rem; opacity: 0.9; }
+
+  .player-main { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+  .cover img { width: 80px; height: 80px; border-radius: 12px; object-fit: cover; }
+  
+  .info { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .title { font-size: 1.1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .artist { font-size: 0.9rem; opacity: 0.9; }
+
+  .progress-container { width: 100%; margin-top: 5px; }
+  .progress { height: 6px; background: rgba(255,255,255,0.2); border-radius: 10px; position: relative; }
+  .progress-bar { height: 100%; background: #ffffff; width: 0%; border-radius: 10px; position: relative; }
+  .progress-knob { width: 12px; height: 12px; background: #ffffff; border-radius: 50%; position: absolute; right: -6px; top: -3px; }
+  
+  .time-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 4px; }
+
+  .controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 15px; }
+  .play-btn {
+    width: 80px; height: 80px; border-radius: 50%; border: none; background: #ffffff;
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    transition: transform 0.1s;
+    outline: none !important;
+    flex: 0 0 auto;
+  }
+  .play-btn:hover {background: #98c01a;}
+  .play-btn:active { transform: scale(0.95);
+  }
+  .play-btn:focus {background: #ffffff;}
+  .play-btn:focus:hover { background: #98c01a;}
+  .icon-play { width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #000; margin-left: 5px; }
+  .icon-pause { display: flex; gap: 6px; }
+  .icon-pause span { width: 8px; height: 30px; background: #000; border-radius: 2px; }
+  .volume-control { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .volume-btn {
+    width: 40px; height: 40px; padding: 8px; border: 0; border-radius: 50%;
+    background: transparent; color: #fff; cursor: pointer; flex: 0 0 auto;
+  }
+  .volume-btn:hover { background: rgba(255, 255, 255, 0.15); }
+  .volume-btn:focus-visible, .volume-control input:focus-visible { outline: 2px solid #98c01a; outline-offset: 2px; }
+  .volume-btn svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+  .volume-btn svg path:not(:first-child) { fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 2; }
+  .volume-control input {
+    flex: 1; min-width: 40px; width: 100%; height: 20px; margin: 0; padding: 0;
+    appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer;
+  }
+  .volume-control input::-webkit-slider-runnable-track {
+    height: 6px; border-radius: 10px;
+    background: linear-gradient(to right, #98c01a 0 var(--volume-fill), rgba(255,255,255,0.3) var(--volume-fill) 100%);
+  }
+  .volume-control input::-webkit-slider-thumb {
+    width: 14px; height: 14px; margin-top: -4px; border: 0; border-radius: 50%;
+    appearance: none; -webkit-appearance: none; background: #fff;
+  }
+  .volume-control input::-moz-range-track { height: 6px; border-radius: 10px; background: rgba(255,255,255,0.3); }
+  .volume-control input::-moz-range-progress { height: 6px; border-radius: 10px; background: #98c01a; }
+  .volume-control input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
+  .volume-control output { min-width: 3ch; text-align: right; font-size: 0.9rem; }
+</style>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+(function () {
+  const audio = document.getElementById('radioAudio');
+  const playBtn = document.getElementById('playBtn');
+  const btnIcon = document.getElementById('btnIcon');
+  const titleEl = document.getElementById('songTitle');
+  const artistEl = document.getElementById('songArtist');
+  const coverEl = document.getElementById('coverArt');
+  const progressEl = document.getElementById('progressBar');
+  const curTimeEl = document.getElementById('currentTime');
+  const totalTimeEl = document.getElementById('totalTime');
+  const volumeBtn = document.getElementById('volumeBtn');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const volumeValue = document.getElementById('volumeValue');
+  const volumeWaves = document.getElementById('volumeWaves');
+  const volumeMuted = document.getElementById('volumeMuted');
+
+  const volumeAttenuation = 0.5;
+  let playing = false;
+  let currentElapsed = 0;
+  let currentDuration = 0;
+  let lastNonZeroVolume = Number(volumeSlider.value);
+  const streamUrl = "https://stream.radio.dvoratbg.com/hls/radiodvoratbg/live.m3u8";
+
+  function updateVolumeTrack() {
+    const sliderWidth = volumeSlider.clientWidth;
+    const thumbWidth = 14;
+    const value = Number(volumeSlider.value);
+    const fillPercent = sliderWidth
+      ? ((value * (sliderWidth - thumbWidth) + thumbWidth / 2) / sliderWidth) * 100
+      : value * 100;
+    volumeSlider.style.setProperty('--volume-fill', `${fillPercent}%`);
+  }
+
+  function updateVolumeControls() {
+    const isMuted = audio.volume === 0;
+    volumeValue.textContent = `${Math.round(Number(volumeSlider.value) * 100)}%`;
+    updateVolumeTrack();
+    volumeWaves.style.display = isMuted ? 'none' : '';
+    volumeMuted.style.display = isMuted ? '' : 'none';
+    volumeBtn.setAttribute('aria-label', isMuted ? 'Unmute audio' : 'Mute audio');
+    volumeBtn.title = isMuted ? 'Unmute audio' : 'Mute audio';
+  }
+
+  audio.volume = Number(volumeSlider.value) * volumeAttenuation;
+  volumeSlider.oninput = () => {
+    const sliderVolume = Number(volumeSlider.value);
+    audio.volume = sliderVolume * volumeAttenuation;
+    if (sliderVolume > 0) lastNonZeroVolume = sliderVolume;
+    updateVolumeControls();
+  };
+
+  volumeBtn.onclick = () => {
+    if (audio.volume > 0) {
+      audio.volume = 0;
+    } else {
+      volumeSlider.value = String(lastNonZeroVolume);
+      audio.volume = lastNonZeroVolume * volumeAttenuation;
+    }
+    updateVolumeControls();
+  };
+
+  window.addEventListener('resize', updateVolumeTrack);
+  updateVolumeControls();
+
+  if (Hls.isSupported()) {
+    const hls = new Hls();
+    hls.loadSource(streamUrl);
+    hls.attachMedia(audio);
+  } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+    audio.src = streamUrl;
+  }
+
+  playBtn.onclick = () => {
+    if (!playing) {
+      audio.play();
+      btnIcon.className = 'icon-pause';
+      btnIcon.innerHTML = '<span></span><span></span>';
+    } else {
+      audio.pause();
+      btnIcon.className = 'icon-play';
+      btnIcon.innerHTML = '';
+    }
+    playing = !playing;
+  };
+
+  function formatTime(s) {
+    s = Math.floor(s);
+    let m = Math.floor(s / 60);
+    let sec = s % 60;
+    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+  }
+
+  setInterval(() => {
+    if (playing && currentDuration > 0 && currentElapsed < currentDuration) {
+      currentElapsed++;
+      const percent = (currentElapsed / currentDuration) * 100;
+      progressEl.style.width = percent + "%";
+      curTimeEl.textContent = formatTime(currentElapsed);
+    }
+  }, 1000);
+
+  async function fetchNowPlaying() {
+    try {
+      const res = await fetch('https://stream.radio.dvoratbg.com/api/nowplaying');
+      const data = await res.json();
+      const station = data[0];
+      titleEl.textContent = station.now_playing.song.title;
+      artistEl.textContent = station.now_playing.song.artist;
+      coverEl.src = station.now_playing.song.art || "";
+      currentElapsed = station.now_playing.elapsed;
+      currentDuration = station.now_playing.duration;
+      if (currentDuration > 0) {
+        const percent = (currentElapsed / currentDuration) * 100;
+        progressEl.style.width = percent + "%";
+        curTimeEl.textContent = formatTime(currentElapsed);
+        totalTimeEl.textContent = formatTime(currentDuration);
+      }
+    } catch (e) { console.error("Error:", e); }
+  }
+
+  fetchNowPlaying();
+  setInterval(fetchNowPlaying, 15000);
+})();
+</script>
