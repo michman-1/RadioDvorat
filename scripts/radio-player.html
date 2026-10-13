@@ -203,7 +203,10 @@
   const volumeAttenuation = 0.5;
   let playing = false;
   let currentElapsed = 0;
+  let elapsedUpdatedAt = 0;
   let currentDuration = 0;
+  let currentTrackKey = null;
+  let nowPlayingRequestInFlight = false;
   let lastNonZeroVolume = Number(volumeSlider.value);
   const streamUrl = "https://stream.radio.dvoratbg.com/hls/radiodvoratbg/live.m3u8";
 
@@ -285,35 +288,74 @@
     return `${m}:${sec < 10 ? '0' : ''}${sec}`;
   }
 
-  setInterval(() => {
-    if (playing && currentDuration > 0 && currentElapsed < currentDuration) {
-      currentElapsed++;
-      const percent = (currentElapsed / currentDuration) * 100;
-      progressEl.style.width = percent + "%";
-      curTimeEl.textContent = formatTime(currentElapsed);
-    }
-  }, 1000);
+  function updateProgress() {
+    if (currentDuration <= 0) return;
+
+    const elapsed = Math.min(
+      currentElapsed + (performance.now() - elapsedUpdatedAt) / 1000,
+      currentDuration
+    );
+    const percent = (elapsed / currentDuration) * 100;
+    progressEl.style.width = percent + "%";
+    curTimeEl.textContent = formatTime(elapsed);
+  }
+
+  setInterval(updateProgress, 250);
 
   async function fetchNowPlaying() {
+    if (nowPlayingRequestInFlight) return;
+    nowPlayingRequestInFlight = true;
+
     try {
-      const res = await fetch('https://stream.radio.dvoratbg.com/api/nowplaying');
+      const res = await fetch('https://stream.radio.dvoratbg.com/api/nowplaying', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Now-playing request failed: ${res.status}`);
+
       const data = await res.json();
       const station = data[0];
-      titleEl.textContent = station.now_playing.song.title;
-      artistEl.textContent = station.now_playing.song.artist;
-      coverEl.src = station.now_playing.song.art || "";
-      currentElapsed = station.now_playing.elapsed;
-      currentDuration = station.now_playing.duration;
-      if (currentDuration > 0) {
-        const percent = (currentElapsed / currentDuration) * 100;
-        progressEl.style.width = percent + "%";
-        curTimeEl.textContent = formatTime(currentElapsed);
-        totalTimeEl.textContent = formatTime(currentDuration);
+      if (!station || !station.now_playing || !station.now_playing.song) {
+        throw new Error('Now-playing response did not contain track metadata');
       }
-    } catch (e) { console.error("Error:", e); }
+
+      const nowPlaying = station.now_playing;
+      const song = nowPlaying.song;
+      const trackKey = `${song.id || ''}\u0000${song.title || ''}\u0000${song.artist || ''}`;
+      const reportedElapsed = Math.max(0, Number(nowPlaying.elapsed) || 0);
+      const responseTime = performance.now();
+      const isNewTrack = trackKey !== currentTrackKey;
+
+      titleEl.textContent = song.title;
+      artistEl.textContent = song.artist;
+      coverEl.src = song.art || "";
+      currentDuration = Math.max(0, Number(nowPlaying.duration) || 0);
+
+      if (isNewTrack) {
+        currentTrackKey = trackKey;
+        currentElapsed = reportedElapsed;
+        elapsedUpdatedAt = responseTime;
+      } else {
+        const estimatedElapsed = currentElapsed + (responseTime - elapsedUpdatedAt) / 1000;
+        if (reportedElapsed >= estimatedElapsed) {
+          currentElapsed = reportedElapsed;
+          elapsedUpdatedAt = responseTime;
+        }
+      }
+
+      if (currentDuration > 0) {
+        totalTimeEl.textContent = formatTime(currentDuration);
+        updateProgress();
+      } else {
+        progressEl.style.width = "0%";
+        curTimeEl.textContent = "0:00";
+        totalTimeEl.textContent = "0:00";
+      }
+    } catch (e) {
+      console.error("Error:", e);
+    } finally {
+      nowPlayingRequestInFlight = false;
+    }
   }
 
   fetchNowPlaying();
-  setInterval(fetchNowPlaying, 15000);
+  setInterval(fetchNowPlaying, 3000);
 })();
 </script>
