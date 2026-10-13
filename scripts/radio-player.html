@@ -41,8 +41,9 @@
             <path id="volumeMuted" d="m16 9 5 6m0-6-5 6" style="display: none;"></path>
           </svg>
         </button>
-        <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volume">
-        <output id="volumeValue" for="volumeSlider">50%</output>
+        <div class="volume-popover">
+          <input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Volume">
+        </div>
       </div>
     </div>
     <audio id="radioAudio"></audio>
@@ -120,7 +121,7 @@
   
   .time-info { display: flex; justify-content: space-between; font-size: 0.9rem; margin-top: 4px; }
 
-  .controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 15px; }
+  .controls { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 15px; }
   .play-btn {
     width: 80px; height: 80px; border-radius: 50%; border: none; background: #ffffff;
     cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
@@ -136,31 +137,47 @@
   .icon-play { width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 25px solid #000; margin-left: 5px; }
   .icon-pause { display: flex; gap: 6px; }
   .icon-pause span { width: 8px; height: 30px; background: #000; border-radius: 2px; }
-  .volume-control { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+  .volume-control {
+    position: absolute; left: calc(50% + 58px); top: 20px; z-index: 3;
+    width: 40px; height: 40px;
+  }
   .volume-btn {
     width: 40px; height: 40px; padding: 8px; border: 0; border-radius: 50%;
     background: transparent; color: #fff; cursor: pointer; flex: 0 0 auto;
   }
   .volume-btn:hover { background: rgba(255, 255, 255, 0.15); }
-  .volume-btn:focus-visible, .volume-control input:focus-visible { outline: 2px solid #98c01a; outline-offset: 2px; }
+  .volume-btn:focus-visible, .volume-popover input:focus-visible { outline: 2px solid #98c01a; outline-offset: 2px; }
   .volume-btn svg { display: block; width: 100%; height: 100%; fill: currentColor; }
   .volume-btn svg path:not(:first-child) { fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 2; }
-  .volume-control input {
-    flex: 1; min-width: 40px; width: 100%; height: 20px; margin: 0; padding: 0;
+  .volume-popover {
+    position: absolute; left: 50%; bottom: 100%; width: 56px; height: 120px;
+    transform: translate(-50%, 6px); display: flex; align-items: center; justify-content: center;
+    border-radius: 14px; background: rgba(0, 0, 0, 0.78); opacity: 0; visibility: hidden;
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  }
+  .volume-control:hover .volume-popover,
+  .volume-control:focus-within .volume-popover {
+    transform: translate(-50%, 0); opacity: 1; visibility: visible;
+  }
+  .volume-control.popover-dismissed .volume-popover {
+    opacity: 0; visibility: hidden; pointer-events: none;
+  }
+  .volume-popover input {
+    position: absolute; left: 50%; top: 50%; width: 86px; height: 20px; margin: 0; padding: 0;
+    transform: translate(-50%, -50%) rotate(-90deg);
     appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer;
   }
-  .volume-control input::-webkit-slider-runnable-track {
+  .volume-popover input::-webkit-slider-runnable-track {
     height: 6px; border-radius: 10px;
     background: linear-gradient(to right, #98c01a 0 var(--volume-fill), rgba(255,255,255,0.3) var(--volume-fill) 100%);
   }
-  .volume-control input::-webkit-slider-thumb {
+  .volume-popover input::-webkit-slider-thumb {
     width: 14px; height: 14px; margin-top: -4px; border: 0; border-radius: 50%;
     appearance: none; -webkit-appearance: none; background: #fff;
   }
-  .volume-control input::-moz-range-track { height: 6px; border-radius: 10px; background: rgba(255,255,255,0.3); }
-  .volume-control input::-moz-range-progress { height: 6px; border-radius: 10px; background: #98c01a; }
-  .volume-control input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
-  .volume-control output { min-width: 3ch; text-align: right; font-size: 0.9rem; }
+  .volume-popover input::-moz-range-track { height: 6px; border-radius: 10px; background: rgba(255,255,255,0.3); }
+  .volume-popover input::-moz-range-progress { height: 6px; border-radius: 10px; background: #98c01a; }
+  .volume-popover input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: #fff; }
 </style>
 
 
@@ -177,9 +194,9 @@
   const progressEl = document.getElementById('progressBar');
   const curTimeEl = document.getElementById('currentTime');
   const totalTimeEl = document.getElementById('totalTime');
+  const volumeControl = document.querySelector('.volume-control');
   const volumeBtn = document.getElementById('volumeBtn');
   const volumeSlider = document.getElementById('volumeSlider');
-  const volumeValue = document.getElementById('volumeValue');
   const volumeWaves = document.getElementById('volumeWaves');
   const volumeMuted = document.getElementById('volumeMuted');
 
@@ -202,7 +219,6 @@
 
   function updateVolumeControls() {
     const isMuted = audio.volume === 0;
-    volumeValue.textContent = `${Math.round(Number(volumeSlider.value) * 100)}%`;
     updateVolumeTrack();
     volumeWaves.style.display = isMuted ? 'none' : '';
     volumeMuted.style.display = isMuted ? '' : 'none';
@@ -226,7 +242,17 @@
       audio.volume = lastNonZeroVolume * volumeAttenuation;
     }
     updateVolumeControls();
+    volumeControl.classList.add('popover-dismissed');
   };
+
+  volumeControl.addEventListener('pointerleave', () => {
+    volumeControl.classList.remove('popover-dismissed');
+  });
+  volumeControl.addEventListener('focusout', (event) => {
+    if (!volumeControl.contains(event.relatedTarget)) {
+      volumeControl.classList.remove('popover-dismissed');
+    }
+  });
 
   window.addEventListener('resize', updateVolumeTrack);
   updateVolumeControls();
