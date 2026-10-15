@@ -255,6 +255,13 @@
     });
   }
 
+  function updateMetadataIfChanged(element, text) {
+    const textElements = metadataText.get(element);
+    if (textElements[0].textContent !== text) {
+      updateMetadataMarquee(element, text);
+    }
+  }
+
   function updateVolumeTrack() {
     const sliderWidth = volumeSlider.clientWidth;
     const thumbWidth = 14;
@@ -274,61 +281,67 @@
     volumeBtn.title = isMuted ? 'Unmute audio' : 'Mute audio';
   }
 
-  audio.volume = Number(volumeSlider.value) * volumeAttenuation;
-  volumeSlider.oninput = () => {
-    const sliderVolume = Number(volumeSlider.value);
-    audio.volume = sliderVolume * volumeAttenuation;
-    if (sliderVolume > 0) lastNonZeroVolume = sliderVolume;
-    updateVolumeControls();
-  };
+  function initializeVolumeControls() {
+    audio.volume = Number(volumeSlider.value) * volumeAttenuation;
+    volumeSlider.oninput = () => {
+      const sliderVolume = Number(volumeSlider.value);
+      audio.volume = sliderVolume * volumeAttenuation;
+      if (sliderVolume > 0) lastNonZeroVolume = sliderVolume;
+      updateVolumeControls();
+    };
 
-  volumeBtn.onclick = () => {
-    if (audio.volume > 0) {
-      audio.volume = 0;
-    } else {
-      volumeSlider.value = String(lastNonZeroVolume);
-      audio.volume = lastNonZeroVolume * volumeAttenuation;
-    }
-    updateVolumeControls();
-    volumeControl.classList.add('popover-dismissed');
-  };
+    volumeBtn.onclick = () => {
+      if (audio.volume > 0) {
+        audio.volume = 0;
+      } else {
+        volumeSlider.value = String(lastNonZeroVolume);
+        audio.volume = lastNonZeroVolume * volumeAttenuation;
+      }
+      updateVolumeControls();
+      volumeControl.classList.add('popover-dismissed');
+    };
 
-  volumeControl.addEventListener('pointerleave', () => {
-    volumeControl.classList.remove('popover-dismissed');
-  });
-  volumeControl.addEventListener('focusout', (event) => {
-    if (!volumeControl.contains(event.relatedTarget)) {
+    volumeControl.addEventListener('pointerleave', () => {
       volumeControl.classList.remove('popover-dismissed');
-    }
-  });
+    });
+    volumeControl.addEventListener('focusout', (event) => {
+      if (!volumeControl.contains(event.relatedTarget)) {
+        volumeControl.classList.remove('popover-dismissed');
+      }
+    });
 
-  window.addEventListener('resize', () => {
-    updateVolumeTrack();
-    updateMetadataMarquee(titleEl, metadataText.get(titleEl)[0].textContent);
-    updateMetadataMarquee(artistEl, metadataText.get(artistEl)[0].textContent);
-  });
-  updateVolumeControls();
-
-  if (Hls.isSupported()) {
-    const hls = new Hls();
-    hls.loadSource(streamUrl);
-    hls.attachMedia(audio);
-  } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-    audio.src = streamUrl;
+    window.addEventListener('resize', () => {
+      updateVolumeTrack();
+      updateMetadataMarquee(titleEl, metadataText.get(titleEl)[0].textContent);
+      updateMetadataMarquee(artistEl, metadataText.get(artistEl)[0].textContent);
+    });
+    updateVolumeControls();
   }
 
-  playBtn.onclick = () => {
-    if (!playing) {
-      audio.play();
-      btnIcon.className = 'icon-pause';
-      btnIcon.innerHTML = '<span></span><span></span>';
-    } else {
-      audio.pause();
-      btnIcon.className = 'icon-play';
-      btnIcon.innerHTML = '';
+  function initializeStream() {
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(streamUrl);
+      hls.attachMedia(audio);
+    } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+      audio.src = streamUrl;
     }
-    playing = !playing;
-  };
+  }
+
+  function initializePlaybackControls() {
+    playBtn.onclick = () => {
+      if (!playing) {
+        audio.play();
+        btnIcon.className = 'icon-pause';
+        btnIcon.innerHTML = '<span></span><span></span>';
+      } else {
+        audio.pause();
+        btnIcon.className = 'icon-play';
+        btnIcon.innerHTML = '';
+      }
+      playing = !playing;
+    };
+  }
 
   function formatTime(s) {
     s = Math.floor(s);
@@ -349,7 +362,61 @@
     curTimeEl.textContent = formatTime(elapsed);
   }
 
-  setInterval(updateProgress, 250);
+  function initializeProgressDisplay() {
+    setInterval(updateProgress, 500);
+  }
+
+  function normalizeNowPlayingResponse(data) {
+    const station = data[0];
+    if (!station || !station.now_playing || !station.now_playing.song) {
+      throw new Error('Now-playing response did not contain track metadata');
+    }
+
+    const nowPlaying = station.now_playing;
+    const song = nowPlaying.song;
+    const title = song.title || '';
+    const artist = song.artist || '';
+
+    return {
+      trackKey: `${song.id || ''}\u0000${title}\u0000${artist}`,
+      title,
+      artist,
+      art: song.art || '',
+      elapsed: Math.max(0, Number(nowPlaying.elapsed) || 0),
+      duration: Math.max(0, Number(nowPlaying.duration) || 0)
+    };
+  }
+
+  function renderNowPlaying(track) {
+    const responseTime = performance.now();
+    const isNewTrack = track.trackKey !== currentTrackKey;
+
+    updateMetadataIfChanged(titleEl, track.title);
+    updateMetadataIfChanged(artistEl, track.artist);
+    if (coverEl.getAttribute('src') !== track.art) coverEl.src = track.art;
+    currentDuration = track.duration;
+
+    if (isNewTrack) {
+      currentTrackKey = track.trackKey;
+      currentElapsed = track.elapsed;
+      elapsedUpdatedAt = responseTime;
+    } else {
+      const estimatedElapsed = currentElapsed + (responseTime - elapsedUpdatedAt) / 1000;
+      if (track.elapsed >= estimatedElapsed) {
+        currentElapsed = track.elapsed;
+        elapsedUpdatedAt = responseTime;
+      }
+    }
+
+    if (currentDuration > 0) {
+      totalTimeEl.textContent = formatTime(currentDuration);
+      updateProgress();
+    } else {
+      progressEl.style.width = "0%";
+      curTimeEl.textContent = "0:00";
+      totalTimeEl.textContent = "0:00";
+    }
+  }
 
   async function fetchNowPlaying() {
     if (nowPlayingRequestInFlight) return;
@@ -359,44 +426,8 @@
       const res = await fetch('https://stream.radio.dvoratbg.com/api/nowplaying', { cache: 'no-store' });
       if (!res.ok) throw new Error(`Now-playing request failed: ${res.status}`);
 
-      const data = await res.json();
-      const station = data[0];
-      if (!station || !station.now_playing || !station.now_playing.song) {
-        throw new Error('Now-playing response did not contain track metadata');
-      }
-
-      const nowPlaying = station.now_playing;
-      const song = nowPlaying.song;
-      const trackKey = `${song.id || ''}\u0000${song.title || ''}\u0000${song.artist || ''}`;
-      const reportedElapsed = Math.max(0, Number(nowPlaying.elapsed) || 0);
-      const responseTime = performance.now();
-      const isNewTrack = trackKey !== currentTrackKey;
-
-      updateMetadataMarquee(titleEl, song.title);
-      updateMetadataMarquee(artistEl, song.artist);
-      coverEl.src = song.art || "";
-      currentDuration = Math.max(0, Number(nowPlaying.duration) || 0);
-
-      if (isNewTrack) {
-        currentTrackKey = trackKey;
-        currentElapsed = reportedElapsed;
-        elapsedUpdatedAt = responseTime;
-      } else {
-        const estimatedElapsed = currentElapsed + (responseTime - elapsedUpdatedAt) / 1000;
-        if (reportedElapsed >= estimatedElapsed) {
-          currentElapsed = reportedElapsed;
-          elapsedUpdatedAt = responseTime;
-        }
-      }
-
-      if (currentDuration > 0) {
-        totalTimeEl.textContent = formatTime(currentDuration);
-        updateProgress();
-      } else {
-        progressEl.style.width = "0%";
-        curTimeEl.textContent = "0:00";
-        totalTimeEl.textContent = "0:00";
-      }
+      const track = normalizeNowPlayingResponse(await res.json());
+      renderNowPlaying(track);
     } catch (e) {
       console.error("Error:", e);
     } finally {
@@ -404,7 +435,15 @@
     }
   }
 
-  fetchNowPlaying();
-  setInterval(fetchNowPlaying, 3000);
+  function initializeNowPlayingPolling() {
+    fetchNowPlaying();
+    setInterval(fetchNowPlaying, 3000);
+  }
+
+  initializeVolumeControls();
+  initializeStream();
+  initializePlaybackControls();
+  initializeProgressDisplay();
+  initializeNowPlayingPolling();
 })();
 </script>
