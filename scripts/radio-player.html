@@ -24,8 +24,14 @@
         </div>
         <div class="artist metadata" id="songArtist">
           <span class="metadata-marquee">
-            <span class="metadata-text">...</span>
-            <span class="metadata-text" aria-hidden="true">...</span>
+            <span class="artist-marquee-group">
+              <span class="metadata-text">...</span>
+              <span class="artist-note" aria-hidden="true">🎵</span>
+            </span>
+            <span class="artist-marquee-group" aria-hidden="true">
+              <span class="metadata-text">...</span>
+              <span class="artist-note">🎵</span>
+            </span>
           </span>
         </div>
         <div class="progress-container">
@@ -126,8 +132,16 @@
   .artist { font-size: 0.9rem; opacity: 0.9; }
   .metadata-marquee { display: inline-flex; width: max-content; }
   .metadata-text { flex: 0 0 auto; margin-right: 2rem; }
-  .metadata-text + .metadata-text { display: none; }
-  .metadata.is-scrolling .metadata-text + .metadata-text { display: inline; }
+  .artist .metadata-text { margin-right: 0; text-align: center; }
+  .artist-note {
+    display: none; flex: 0 0 6rem; align-items: center; justify-content: center;
+    box-sizing: border-box; margin: 0;
+  }
+  .artist-marquee-group { display: none; align-items: center; margin-right: 1rem; }
+  .artist.is-scrolling .artist-marquee-group { display: inline-flex; }
+  .metadata-text[aria-hidden="true"] { display: none; }
+  .metadata.is-scrolling .metadata-text[aria-hidden="true"] { display: inline; }
+  .artist.is-scrolling .artist-note { display: inline-flex; }
   .metadata.is-scrolling .metadata-marquee { animation: metadata-scroll var(--scroll-duration) linear infinite; }
   @keyframes metadata-scroll {
     to { transform: translateX(-50%); }
@@ -244,19 +258,21 @@
 
     requestAnimationFrame(() => {
       const textWidth = textElements[0].getBoundingClientRect().width;
-      const itemWidth = Math.max(element.clientWidth, textWidth);
       const isOverflowing = textWidth > element.clientWidth;
       const shouldScroll = isOverflowing || element === artistEl;
+      element.classList.toggle('is-overflowing', isOverflowing);
+      element.classList.toggle('is-scrolling', shouldScroll);
+
       if (element === artistEl) {
+        const itemWidth = Math.max(element.clientWidth, textWidth);
         textElements.forEach((textElement) => {
           textElement.style.width = `${itemWidth}px`;
         });
-      }
-      element.classList.toggle('is-overflowing', isOverflowing);
-      element.classList.toggle('is-scrolling', shouldScroll);
-      if (shouldScroll) {
-        const scrollWidth = (element === artistEl ? itemWidth : textWidth)
-          + parseFloat(getComputedStyle(textElements[0]).marginRight);
+        const noteWidth = element.querySelector('.artist-note').getBoundingClientRect().width;
+        const groupGap = parseFloat(getComputedStyle(element.querySelector('.artist-marquee-group')).marginRight);
+        element.style.setProperty('--scroll-duration', `${Math.max(15, (itemWidth + noteWidth + groupGap) / 30)}s`);
+      } else if (shouldScroll) {
+        const scrollWidth = textWidth + parseFloat(getComputedStyle(textElements[0]).marginRight);
         element.style.setProperty('--scroll-duration', `${Math.max(15, scrollWidth / 30)}s`);
       } else {
         element.style.removeProperty('--scroll-duration');
