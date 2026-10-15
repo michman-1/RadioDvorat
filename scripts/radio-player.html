@@ -16,8 +16,18 @@
     <div class="player-main">
       <div class="cover"><img id="coverArt" src="" alt="Cover"></div>
       <div class="info">
-        <div class="title" id="songTitle">Зареждане...</div>
-        <div class="artist" id="songArtist">...</div>
+        <div class="title metadata" id="songTitle">
+          <span class="metadata-marquee">
+            <span class="metadata-text">Зареждане...</span>
+            <span class="metadata-text" aria-hidden="true">Зареждане...</span>
+          </span>
+        </div>
+        <div class="artist metadata" id="songArtist">
+          <span class="metadata-marquee">
+            <span class="metadata-text">...</span>
+            <span class="metadata-text" aria-hidden="true">...</span>
+          </span>
+        </div>
         <div class="progress-container">
           <div class="progress">
             <div class="progress-bar" id="progressBar" style="width: 0%;">
@@ -110,9 +120,21 @@
   .player-main { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
   .cover img { width: 80px; height: 80px; border-radius: 12px; object-fit: cover; }
   
-  .info { flex: 1; display: flex; flex-direction: column; gap: 5px; }
-  .title { font-size: 1.1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .metadata { width: 100%; overflow: hidden; white-space: nowrap; }
+  .title { font-size: 1.1rem; font-weight: 700; }
   .artist { font-size: 0.9rem; opacity: 0.9; }
+  .metadata-marquee { display: inline-flex; width: max-content; }
+  .metadata-text { flex: 0 0 auto; margin-right: 2rem; }
+  .metadata-text + .metadata-text { display: none; }
+  .metadata.is-scrolling .metadata-text + .metadata-text { display: inline; }
+  .metadata.is-scrolling .metadata-marquee { animation: metadata-scroll var(--scroll-duration) linear infinite; }
+  @keyframes metadata-scroll {
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .metadata.is-scrolling .metadata-marquee { animation: none; }
+  }
 
   .progress-container { width: 100%; margin-top: 5px; }
   .progress { height: 6px; background: rgba(255,255,255,0.2); border-radius: 10px; position: relative; }
@@ -190,6 +212,9 @@
   const btnIcon = document.getElementById('btnIcon');
   const titleEl = document.getElementById('songTitle');
   const artistEl = document.getElementById('songArtist');
+  const metadataText = new Map(
+    [titleEl, artistEl].map((element) => [element, element.querySelectorAll('.metadata-text')])
+  );
   const coverEl = document.getElementById('coverArt');
   const progressEl = document.getElementById('progressBar');
   const curTimeEl = document.getElementById('currentTime');
@@ -209,6 +234,26 @@
   let nowPlayingRequestInFlight = false;
   let lastNonZeroVolume = Number(volumeSlider.value);
   const streamUrl = "https://stream.radio.dvoratbg.com/hls/radiodvoratbg/live.m3u8";
+
+  function updateMetadataMarquee(element, text) {
+    const textElements = metadataText.get(element);
+    textElements.forEach((textElement) => {
+      textElement.textContent = text;
+    });
+
+    requestAnimationFrame(() => {
+      const textWidth = textElements[0].getBoundingClientRect().width;
+      const isOverflowing = textWidth > element.clientWidth;
+      const shouldScroll = isOverflowing || element === artistEl;
+      element.classList.toggle('is-overflowing', isOverflowing);
+      element.classList.toggle('is-scrolling', shouldScroll);
+      if (shouldScroll) {
+        element.style.setProperty('--scroll-duration', `${Math.max(18, textWidth / 25)}s`);
+      } else {
+        element.style.removeProperty('--scroll-duration');
+      }
+    });
+  }
 
   function updateVolumeTrack() {
     const sliderWidth = volumeSlider.clientWidth;
@@ -257,7 +302,11 @@
     }
   });
 
-  window.addEventListener('resize', updateVolumeTrack);
+  window.addEventListener('resize', () => {
+    updateVolumeTrack();
+    updateMetadataMarquee(titleEl, metadataText.get(titleEl)[0].textContent);
+    updateMetadataMarquee(artistEl, metadataText.get(artistEl)[0].textContent);
+  });
   updateVolumeControls();
 
   if (Hls.isSupported()) {
@@ -323,8 +372,8 @@
       const responseTime = performance.now();
       const isNewTrack = trackKey !== currentTrackKey;
 
-      titleEl.textContent = song.title;
-      artistEl.textContent = song.artist;
+      updateMetadataMarquee(titleEl, song.title);
+      updateMetadataMarquee(artistEl, song.artist);
       coverEl.src = song.art || "";
       currentDuration = Math.max(0, Number(nowPlaying.duration) || 0);
 
