@@ -248,6 +248,33 @@
   let nowPlayingRequestInFlight = false;
   let lastNonZeroVolume = Number(volumeSlider.value);
   const streamUrl = "https://stream.radio.dvoratbg.com/hls/radiodvoratbg/live.m3u8";
+  const mediaSessionArtwork = ""; // Wordpress media lib.
+  const mediaSession = 'mediaSession' in navigator ? navigator.mediaSession : null;
+
+  function updateMediaSessionMetadata(track) {
+    if (!mediaSession || !('MediaMetadata' in window)) return;
+
+    const metadata = {
+      title: track.title || 'Радио Дворът',
+      artist: track.artist ? `${track.artist} · ${track.station}` : track.station,
+      album: track.station
+    };
+    if (mediaSessionArtwork) {
+      metadata.artwork = [{ src: mediaSessionArtwork }];
+    }
+
+    mediaSession.metadata = new MediaMetadata(metadata);
+  }
+
+  function updatePlaybackState() {
+    playing = !audio.paused;
+    btnIcon.className = playing ? 'icon-pause' : 'icon-play';
+    btnIcon.innerHTML = playing ? '<span></span><span></span>' : '';
+
+    if (mediaSession) {
+      mediaSession.playbackState = playing ? 'playing' : 'paused';
+    }
+  }
 
   function updateMetadataMarquee(element, text) {
     const textElements = metadataText.get(element);
@@ -355,17 +382,17 @@
 
   function initializePlaybackControls() {
     playBtn.onclick = () => {
-      if (!playing) {
-        audio.play();
-        btnIcon.className = 'icon-pause';
-        btnIcon.innerHTML = '<span></span><span></span>';
-      } else {
-        audio.pause();
-        btnIcon.className = 'icon-play';
-        btnIcon.innerHTML = '';
-      }
-      playing = !playing;
+      if (audio.paused) audio.play();
+      else audio.pause();
     };
+
+    audio.addEventListener('play', updatePlaybackState);
+    audio.addEventListener('pause', updatePlaybackState);
+
+    if (mediaSession && typeof mediaSession.setActionHandler === 'function') {
+      mediaSession.setActionHandler('play', () => audio.play());
+      mediaSession.setActionHandler('pause', () => audio.pause());
+    }
   }
 
   function formatTime(s) {
@@ -385,6 +412,14 @@
     const percent = (elapsed / currentDuration) * 100;
     progressEl.style.width = percent + "%";
     curTimeEl.textContent = formatTime(elapsed);
+
+    if (mediaSession && typeof mediaSession.setPositionState === 'function') {
+      mediaSession.setPositionState({
+        duration: currentDuration,
+        position: elapsed,
+        playbackRate: 1
+      });
+    }
   }
 
   function initializeProgressDisplay() {
@@ -401,14 +436,17 @@
     const song = nowPlaying.song;
     const title = song.title || '';
     const artist = song.artist || '';
+    const duration = Number(nowPlaying.duration) || Number(song.duration) || 0;
+    const elapsed = Number(nowPlaying.elapsed);
 
     return {
       trackKey: `${song.id || ''}\u0000${title}\u0000${artist}`,
       title,
       artist,
+      station: station.station && station.station.name || 'Радио Дворът',
       art: song.art || '',
-      elapsed: Math.max(0, Number(nowPlaying.elapsed) || 0),
-      duration: Math.max(0, Number(nowPlaying.duration) || 0)
+      elapsed: Math.max(0, Number.isFinite(elapsed) ? elapsed : 0),
+      duration: Math.max(0, Number.isFinite(duration) ? duration : 0)
     };
   }
 
@@ -416,6 +454,7 @@
     const responseTime = performance.now();
     const isNewTrack = track.trackKey !== currentTrackKey;
 
+    updateMediaSessionMetadata(track);
     updateMetadataIfChanged(titleEl, track.title);
     updateMetadataIfChanged(artistEl, track.artist);
     if (coverEl.getAttribute('src') !== track.art) coverEl.src = track.art;
